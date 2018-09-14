@@ -5,17 +5,38 @@ import (
 	"go/build"
 	"log"
 	"os"
+	"os/exec"
 	"regexp"
 	"strings"
+	"syscall"
+	"time"
 )
 
-func logger(s string) {
-	log.Printf("\033[1;34m[uimon]\033[0m %s", s)
+func init() {
+	log.SetFlags(log.Flags() &^ log.Ldate)
 }
 
-func Start(exec func()) {
-	log.SetFlags(log.Flags() &^ log.Ldate)
+func hotfixLoop() {
+	bin, _ := exec.LookPath("go")
+	env := os.Environ()
+	args := []string{"go", "test", "-run", "TestMain"}
+	syscall.Exec(bin, args, env)
+}
 
+func Start(exec func(), q func()) {
+	c := make(chan int)
+	go startWatcher(c)
+	go Quit(c, q)
+	exec()
+	hotfixLoop()
+}
+
+func Quit(c chan int, q func()) {
+	<-c
+	q()
+}
+
+func startWatcher(c chan int) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Print(err)
@@ -27,26 +48,62 @@ func Start(exec func()) {
 		panic(err)
 	}
 
+	gp := build.Default.GOPATH
+	logger("Serving files from: $GOPATH%s", strings.TrimPrefix(wd, gp))
 	if err := watcher.Add(wd); err != nil {
 		panic(err)
 	}
 
-	gp := build.Default.GOPATH
-	logger("Serving files from: $GOPATH" + strings.TrimPrefix(wd, gp))
-
 	logger("Watching files...")
+	runWatcherLoop(watcher, c)
+}
+
+func runWatcherLoop(w *fsnotify.Watcher, c chan int) {
+	flag := true
 	go func() {
-		r := regexp.MustCompile(`.*/(.*)"`)
+		// file path | operation
 		for {
 			select {
-			case event := <-watcher.Events:
-				f := r.FindStringSubmatch(event.String())
-				logger("File changed: " + f[1])
-				exec()
-			case err := <-watcher.Errors:
+			case ev, ok := <-w.Events:
+				if !ok {
+					continue
+				}
+				if flag {
+					f := matchFile(ev.String())
+					logger("%s : %v", f, ev.Op)
+					resetFlag(&flag)
+					c <- 1
+				}
+			case err, ok := <-w.Errors:
+				if !ok {
+					continue
+				}
 				panic(err)
 			}
 		}
 	}()
 	select {}
+}
+
+var r *regexp.Regexp
+
+func matchFile(s string) string {
+	if r == nil {
+		r = regexp.MustCompile(`.*/(.*)"`)
+	}
+	m := r.FindStringSubmatch(s)
+	return m[1]
+}
+
+func resetFlag(s *bool) {
+	*s = false
+	go func() {
+		time.Sleep(time.Second * 2)
+		*s = true
+	}()
+}
+
+func logger(f string, args ...interface{}) {
+	f = "\033[1;34m[uimon]\033[0m " + f
+	log.Printf(f, args...)
 }

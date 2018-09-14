@@ -2,6 +2,14 @@
 
 
 [[projects]]
+  branch = "master"
+  digest = "1:f43ae18fea96ddd49340e65001d1b556e2dba024228a93ee9eec25fe3fe52939"
+  name = "github.com/faiface/mainthread"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "8b78f0a41ae388189090ac4506612659fa53082b"
+
+[[projects]]
   digest = "1:abeb38ade3f32a92943e5be54f55ed6d6e3b6602761d74b4aab4c9dd45c18abd"
   name = "github.com/fsnotify/fsnotify"
   packages = ["."]
@@ -20,6 +28,9 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  input-imports = ["github.com/fsnotify/fsnotify"]
+  input-imports = [
+    "github.com/faiface/mainthread",
+    "github.com/fsnotify/fsnotify",
+  ]
   solver-name = "gps-cdcl"
   solver-version = 1
