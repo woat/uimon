@@ -16,11 +16,17 @@ func init() {
 	log.SetFlags(log.Flags() &^ log.Ldate)
 }
 
-func hotfixLoop() {
+func Starter() {
 	bin, _ := exec.LookPath("go")
 	env := os.Environ()
-	args := []string{"go", "test", "-run", "TestMain"}
+	args := []string{"go", "test", "-args", "-uimon=run"}
 	syscall.Exec(bin, args, env)
+}
+
+func HotfixLoop() {
+	logger("Killing %v, from %v", os.Getppid(), os.Getpid())
+	syscall.Kill(os.Getppid(), syscall.SIGKILL)
+	Starter()
 }
 
 func Start(exec func(), q func()) {
@@ -28,7 +34,7 @@ func Start(exec func(), q func()) {
 	go startWatcher(c)
 	go Quit(c, q)
 	exec()
-	hotfixLoop()
+	HotfixLoop()
 }
 
 func Quit(c chan int, q func()) {
