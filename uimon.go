@@ -16,11 +16,18 @@ func init() {
 	log.SetFlags(log.Flags() &^ log.Ldate)
 }
 
-func Starter() {
-	bin, _ := exec.LookPath("go")
-	env := os.Environ()
+func Starter() int {
+	// bin, _ := exec.LookPath("go")
+	// env := os.Environ()
 	args := []string{"go", "test", "-args", "-uimon=run"}
-	syscall.Exec(bin, args, env)
+	// syscall.Exec(bin, args, env)
+
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Env = os.Environ()
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Start()
+	// syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	return -cmd.Process.Pid
 }
 
 func HotfixLoop() {
@@ -32,6 +39,7 @@ func HotfixLoop() {
 func Start(exec func(), q func()) {
 	c := make(chan int)
 	go startWatcher(c)
+
 	go Quit(c, q)
 	exec()
 	HotfixLoop()
