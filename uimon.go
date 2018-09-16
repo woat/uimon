@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"os/signal"
 	"regexp"
 	"strings"
 	"syscall"
@@ -16,18 +17,26 @@ func init() {
 	log.SetFlags(log.Flags() &^ log.Ldate)
 }
 
-func Starter() int {
-	// bin, _ := exec.LookPath("go")
-	// env := os.Environ()
-	args := []string{"go", "test", "-args", "-uimon=run"}
-	// syscall.Exec(bin, args, env)
+func onUimonExit(pid int) {
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		syscall.Kill(pid, syscall.SIGKILL)
+		os.Exit(0)
+	}()
+}
 
+func Starter() {
+	args := []string{"go", "test", "-args", "-uimon=run"}
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Env = os.Environ()
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Start()
-	// syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-	return -cmd.Process.Pid
+	go onUimonExit(-cmd.Process.Pid)
+	// time.AfterFunc(3*time.Second, func() {
+	// 	syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	// })
 }
 
 func HotfixLoop() {
